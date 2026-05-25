@@ -41,6 +41,7 @@ model Medicine {
   orderItems           OrderItem[]
   cartItems            CartItem[]
   sales                Sale[]
+  clinicMedicines      ClinicPatientMedicine[]
 }
 
 model Cart {
@@ -99,6 +100,30 @@ model Banner {
   order     Int      @default(0)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model ClinicPatient {
+  id        String                  @id @default(cuid())
+  name      String
+  phone     String
+  address   String?
+  notes     String?
+  createdAt DateTime                @default(now())
+  medicines ClinicPatientMedicine[]
+}
+
+model ClinicPatientMedicine {
+  id               String        @id @default(cuid())
+  patientId        String
+  patient          ClinicPatient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicineId       String
+  medicine         Medicine      @relation(fields: [medicineId], references: [id])
+  dosage           String
+  daysSupply       Int
+  quantityPerRefill Int
+  lastRefillDate   DateTime      @default(now())
+  nextRefillDate   DateTime
+  createdAt        DateTime      @default(now())
 }
 
 model Sale {
