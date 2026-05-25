@@ -40,6 +40,7 @@ model Medicine {
   updatedAt            DateTime    @updatedAt
   orderItems           OrderItem[]
   cartItems            CartItem[]
+  sales                Sale[]
 }
 
 model Cart {
@@ -98,4 +99,16 @@ model Banner {
   order     Int      @default(0)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model Sale {
+  id          String   @id @default(cuid())
+  medicineId  String
+  medicine    Medicine @relation(fields: [medicineId], references: [id])
+  quantity    Int
+  unitPrice   Float
+  costPrice   Float
+  totalAmount Float
+  soldAt      DateTime @default(now())
+  notes       String?
 }

@@ -209,6 +209,7 @@ export default function AdminDashboard() {
         {/* Quick Links */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
+            { href: "/admin/sales", label: "Rekodi Mauzo", icon: "🛒" },
             { href: "/admin/medicines", label: "Simamia Dawa", icon: "💊" },
             { href: "/admin/orders", label: "Simamia Maagizo", icon: "📦" },
             { href: "/admin/categories", label: "Simamia Aina", icon: "🏷️" },
