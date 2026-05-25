@@ -43,22 +43,51 @@ export default function AdminBannersPage() {
 
   useEffect(() => { fetchBanners(); }, []);
 
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_W = 1200;
+        const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setPreview(URL.createObjectURL(file));
     setUploading(true);
+    setPreview("");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
+    try {
+      const dataUrl = await compressImage(file);
+      setPreview(dataUrl);
 
-    if (res.ok) {
-      setNewImage(data.url);
-    } else {
-      alert(data.error || "Tatizo la kupakia picha");
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setNewImage(data.url);
+      } else {
+        alert(data.error || "Tatizo la kupakia picha");
+        setPreview("");
+      }
+    } catch {
+      alert("Tatizo la kusoma picha. Jaribu tena.");
       setPreview("");
     }
     setUploading(false);

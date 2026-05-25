@@ -87,25 +87,48 @@ export default function AdminMedicinesPage() {
     setShowModal(true);
   };
 
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_W = 800;
+        const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Show local preview immediately
-    const objectUrl = URL.createObjectURL(file);
-    setPreview(objectUrl);
-
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      const dataUrl = await compressImage(file);
+      setPreview(dataUrl);
 
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl }),
+      });
+      const data = await res.json();
 
-    if (res.ok) {
-      setForm((prev) => ({ ...prev, image: data.url }));
-    } else {
-      alert(data.error || "Tatizo la kupakia picha");
+      if (res.ok) {
+        setForm((prev) => ({ ...prev, image: data.url }));
+      } else {
+        alert(data.error || "Tatizo la kupakia picha");
+        setPreview(form.image || "");
+      }
+    } catch {
+      alert("Tatizo la kusoma picha. Jaribu tena.");
       setPreview(form.image || "");
     }
     setUploading(false);

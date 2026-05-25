@@ -73,19 +73,45 @@ export default function AdminSettingsPage() {
     setSaving(false);
   };
 
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_W = 400;
+        const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/png", 0.9));
+      };
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setLogoPreview(URL.createObjectURL(file));
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (res.ok) {
-      set("logo", data.url);
-    } else {
-      showToast(data.error || "Tatizo la kupakia logo", "error");
+    try {
+      const dataUrl = await compressImage(file);
+      setLogoPreview(dataUrl);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set("logo", data.url);
+      } else {
+        showToast(data.error || "Tatizo la kupakia logo", "error");
+        setLogoPreview(settings.logo || "");
+      }
+    } catch {
+      showToast("Tatizo la kusoma picha. Jaribu tena.", "error");
       setLogoPreview(settings.logo || "");
     }
     setUploading(false);
