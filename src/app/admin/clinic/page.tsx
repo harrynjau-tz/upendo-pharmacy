@@ -40,6 +40,62 @@ type Reminder = {
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("sw-TZ");
 
+const MONTHS_SW = ["Januari","Februari","Machi","Aprili","Mei","Juni","Julai","Agosti","Septemba","Oktoba","Novemba","Desemba"];
+const DAYS_SW = ["J","P","L","J","A","I","J"];
+
+function MiniCalendar({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const end = new Date(endDate); end.setHours(0,0,0,0);
+  const start = new Date(startDate); start.setHours(0,0,0,0);
+
+  // Show the month of the end date
+  const viewYear = end.getFullYear();
+  const viewMonth = end.getMonth();
+
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  const lastDay = new Date(viewYear, viewMonth + 1, 0);
+  const startWeekday = firstDay.getDay(); // 0=Sun
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
+
+  return (
+    <div className="mt-3 bg-gray-50 rounded-xl p-3 text-xs">
+      <p className="text-center font-semibold text-gray-600 mb-2">{MONTHS_SW[viewMonth]} {viewYear}</p>
+      <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
+        {DAYS_SW.map((d, i) => <div key={i} className="text-gray-400 font-medium text-[10px]">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const thisDate = new Date(viewYear, viewMonth, day); thisDate.setHours(0,0,0,0);
+          const isToday = thisDate.getTime() === today.getTime();
+          const isEnd = thisDate.getTime() === end.getTime();
+          const isStart = thisDate.getTime() === start.getTime() && viewMonth === start.getMonth() && viewYear === start.getFullYear();
+          const inRange = thisDate > start && thisDate < end;
+          const isPast = thisDate < today && thisDate >= start;
+
+          let cls = "w-6 h-6 flex items-center justify-center rounded-full mx-auto text-[10px] font-medium ";
+          if (isEnd) cls += "bg-red-500 text-white font-bold";
+          else if (isStart) cls += "bg-green-500 text-white font-bold";
+          else if (isToday) cls += "bg-blue-500 text-white";
+          else if (isPast) cls += "bg-gray-200 text-gray-400";
+          else if (inRange) cls += "bg-orange-100 text-orange-700";
+          else cls += "text-gray-500";
+
+          return <div key={i} className={cls} title={isEnd ? "Kuisha" : isStart ? "Kuanza" : isToday ? "Leo" : ""}>{day}</div>;
+        })}
+      </div>
+      <div className="flex gap-3 mt-2 flex-wrap justify-center">
+        <span className="flex items-center gap-1 text-[10px] text-gray-500"><span className="w-3 h-3 bg-green-500 rounded-full inline-block"></span>Ilianza</span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500"><span className="w-3 h-3 bg-blue-500 rounded-full inline-block"></span>Leo</span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500"><span className="w-3 h-3 bg-red-500 rounded-full inline-block"></span>Inaisha</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ClinicPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -346,34 +402,80 @@ export default function ClinicPage() {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {selectedPatient.medicines.map((pm) => {
-                          const next = new Date(pm.nextRefillDate);
-                          const today = new Date();
+                          const today = new Date(); today.setHours(0,0,0,0);
+                          const next = new Date(pm.nextRefillDate); next.setHours(0,0,0,0);
+                          const last = new Date(pm.lastRefillDate); last.setHours(0,0,0,0);
                           const daysLeft = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          const daysUsed = Math.max(0, Math.ceil((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)));
+                          const totalDays = pm.daysSupply;
+                          const pct = Math.min(100, Math.round((daysUsed / totalDays) * 100));
+                          const pillsPerDay = (pm.quantityPerRefill / pm.daysSupply).toFixed(1);
+                          const pillsLeft = Math.max(0, Math.round((pm.quantityPerRefill / pm.daysSupply) * daysLeft));
                           const isOverdue = daysLeft < 0;
                           const isSoon = daysLeft >= 0 && daysLeft <= 7;
                           return (
-                            <div key={pm.id} className="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <p className="font-semibold text-gray-800">{pm.medicine.name}</p>
-                                <p className="text-sm text-gray-500">💊 {pm.dosage} | Vitengo: {pm.quantityPerRefill} kila siku {pm.daysSupply}</p>
-                                <p className="text-sm mt-1">
-                                  Kujaza ijayo: <span className="font-medium">{fmtDate(pm.nextRefillDate)}</span>
-                                  {" "}
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isOverdue ? "bg-red-100 text-red-600" : isSoon ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-600"}`}>
-                                    {isOverdue ? `Imechelewa ${Math.abs(daysLeft)} siku` : `Siku ${daysLeft} zimebaki`}
+                            <div key={pm.id} className="px-6 py-5">
+                              {/* Header */}
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <div>
+                                  <p className="font-bold text-gray-800 text-base">{pm.medicine.name}</p>
+                                  <p className="text-sm text-gray-500 mt-0.5">💊 {pm.dosage}</p>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                  <button onClick={() => doRefill(selectedPatient.id, pm.id)}
+                                    className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
+                                    <RefreshCw size={13} /> Jaza
+                                  </button>
+                                  <button onClick={() => removeMedicine(selectedPatient.id, pm.id)}
+                                    className="text-sm text-red-400 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Stats row */}
+                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-gray-500 mb-0.5">Alipewa</p>
+                                  <p className="text-lg font-bold text-blue-700">{pm.quantityPerRefill}</p>
+                                  <p className="text-[10px] text-gray-400">vidonge</p>
+                                </div>
+                                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-gray-500 mb-0.5">Kwa Siku</p>
+                                  <p className="text-lg font-bold text-purple-700">{pillsPerDay}</p>
+                                  <p className="text-[10px] text-gray-400">vidonge/siku</p>
+                                </div>
+                                <div className={`rounded-xl p-3 text-center ${isOverdue ? "bg-red-50" : isSoon ? "bg-orange-50" : "bg-green-50"}`}>
+                                  <p className="text-xs text-gray-500 mb-0.5">Vilivyobaki</p>
+                                  <p className={`text-lg font-bold ${isOverdue ? "text-red-600" : isSoon ? "text-orange-600" : "text-green-600"}`}>{isOverdue ? 0 : pillsLeft}</p>
+                                  <p className="text-[10px] text-gray-400">vidonge</p>
+                                </div>
+                              </div>
+
+                              {/* Progress bar */}
+                              <div className="mb-1">
+                                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                  <span>Imeanza: {fmtDate(pm.lastRefillDate)}</span>
+                                  <span>
+                                    <span className={`font-semibold px-2 py-0.5 rounded-full text-[10px] ${isOverdue ? "bg-red-100 text-red-600" : isSoon ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-600"}`}>
+                                      {isOverdue ? `Imechelewa siku ${Math.abs(daysLeft)}` : `Siku ${daysLeft} zimebaki`}
+                                    </span>
                                   </span>
-                                </p>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                                  <div
+                                    className={`h-3 rounded-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-orange-400" : "bg-green-500"}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                                  <span>Siku {Math.min(daysUsed, totalDays)}/{totalDays} zimepita</span>
+                                  <span>Kuisha: {fmtDate(pm.nextRefillDate)}</span>
+                                </div>
                               </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => doRefill(selectedPatient.id, pm.id)}
-                                  className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
-                                  <RefreshCw size={13} /> Jaza Leo
-                                </button>
-                                <button onClick={() => removeMedicine(selectedPatient.id, pm.id)}
-                                  className="text-sm text-red-400 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
+
+                              {/* Mini Calendar */}
+                              <MiniCalendar startDate={pm.lastRefillDate} endDate={pm.nextRefillDate} />
                             </div>
                           );
                         })}
@@ -453,17 +555,23 @@ export default function ClinicPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Idadi kwa Kujaza *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Vidonge Anavyopewa *</label>
                   <input type="number" min={1} value={medForm.quantityPerRefill} onChange={(e) => setMedForm((f) => ({ ...f, quantityPerRefill: e.target.value }))} required
+                    placeholder="mfano: 60"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Idadi ya Siku *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Zinatosha Siku Ngapi *</label>
                   <input type="number" min={1} value={medForm.daysSupply} onChange={(e) => setMedForm((f) => ({ ...f, daysSupply: e.target.value }))} required
-                    placeholder="30"
+                    placeholder="mfano: 30"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                 </div>
               </div>
+              {medForm.quantityPerRefill && medForm.daysSupply && (
+                <div className="bg-blue-50 rounded-xl px-4 py-2.5 text-sm text-blue-700 flex items-center gap-2">
+                  💊 Anatumia <strong>{(Number(medForm.quantityPerRefill) / Number(medForm.daysSupply)).toFixed(1)}</strong> vidonge kwa siku
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Tarehe ya Kujaza Mara ya Mwisho *</label>
                 <input type="date" value={medForm.lastRefillDate} onChange={(e) => setMedForm((f) => ({ ...f, lastRefillDate: e.target.value }))} required
